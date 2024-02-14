@@ -1,2 +1,2 @@
 # Fireworks-Flashing-Night
-烟火闪烁的夜晚
+花火闪烁的夜晚
