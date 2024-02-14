@@ -30,3 +30,16 @@
 *.exe
 *.out
 *.app
+
+# Visual Studio Code configuration files
+.vscode/
+
+# Xmake configuration files
+.xmake/
+
+# Clangd cache
+.cache/
+.vscode/.cache/clangd
+
+# Build folders
+build/
