@@ -1,0 +1,48 @@
+# 设置所有文件默认进行行尾序列规范化(提交时转为 LF)
+*               text=auto
+
+# 设置源文件行尾序列
+*.c             text  eol=lf
+*.cpp           text  eol=lf
+*.h             text  eol=lf
+*.hpp           text  eol=lf
+
+*.json          text  eol=lf
+*.js            text  eol=lf
+
+*.md            text  eol=lf
+*.txt           text  eol=lf
+
+# Visual Studio 项目文件
+*.sln               text  eol=crlf
+*.vcproj            text  eol=crlf
+*.vcxproj           text  eol=crlf
+*.vcxproj.filters   text  eol=crlf
+*.vcxproj.user      text  eol=crlf
+
+# ------------ 标记二进制文件 ------------
+# 图片文件
+*.jpg           binary
+*.jpeg          binary
+*.png           binary
+*.gif           binary
+*.tif           binary
+*.bmp           binary
+*.emf           binary
+*.wmf           binary
+*.ico           binary
+
+
+# 多媒体文件
+*.mp3           binary
+*.mp4           binary
+*.mpeg          binary
+*.mpg           binary
+*.wav           binary
+*.mid           binary
+*.midi          binary
+*.wmv           binary
+*.3gp           binary
+*.avi           binary
+
+
