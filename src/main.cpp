@@ -1,21 +1,8 @@
-#define WINVER 0x0A00
-#define _WIN32_WINNT 0x0A00
-
-#define SHOW_CONSOLE
 #include <graphics.h>
 
-#include <time.h>
 #include <math.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <assert.h>
-#include <windows.h>
-
-
-/* -------------------------------------------------------------------------- */
-#define GROUND            580   // 地面位置y坐标
-#define PARTICLE_MIN_NUM  160   // 每个烟花包含的最小粒子数目
-#define PARTICLE_MAX_NUM  240   // 每个烟花包含的最大粒子数目
 
 /* -------------------------------------------------------------------------- */
 // 速度
@@ -125,7 +112,10 @@ void randomFireworks(Fireworks* fireworks);
 // 从图片文件中加载图像
 PIMAGE loadImageFromFile(const char* fileName);
 
-#define NUM_FIREWORKS 12    // 烟花数量
+#define NUM_FIREWORKS     12    // 烟花数量
+#define GROUND            580   // 地面位置y坐标
+#define PARTICLE_MIN_NUM  160   // 每个烟花包含的最小粒子数目
+#define PARTICLE_MAX_NUM  240   // 每个烟花包含的最大粒子数目
 
 int main()
 {
@@ -155,11 +145,12 @@ int main()
     delay_ms(0);
 
     //背景音乐
+    int musicBeginTimeMs = 1000;
     MUSIC bgMusic;
     bgMusic.OpenFile(backgroundMusicPath);
     bgMusic.SetVolume(1.0f);
     if (bgMusic.IsOpen()) {
-        bgMusic.Play(2000);
+        bgMusic.Play(musicBeginTimeMs);
     }
 
     //图像缓存, 因为要加背景图，直接加模糊滤镜会把背景图模糊掉
@@ -174,7 +165,7 @@ int main()
         // 隔 1 秒检查一次，如果播放完了，重新播放
         if ((++timeCount % 60 == 0) && (bgMusic.GetPlayStatus() == MUSIC_MODE_STOP)) {
             timeCount = 0;
-            bgMusic.Play(2000);
+            bgMusic.Play(musicBeginTimeMs);
         }
 
         //更新位置
