@@ -1,196 +1,166 @@
+#define WINVER 0x0A00
+#define _WIN32_WINNT 0x0A00
+
+#define SHOW_CONSOLE
 #include <graphics.h>
 
 #include <time.h>
 #include <math.h>
-#include <Windows.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
+#include <windows.h>
 
-#define GROUND 580  //地面位置y坐标
 
+/* -------------------------------------------------------------------------- */
+#define GROUND            580   // 地面位置y坐标
+#define PARTICLE_MIN_NUM  160   // 每个烟花包含的最小粒子数目
+#define PARTICLE_MAX_NUM  240   // 每个烟花包含的最大粒子数目
+
+/* -------------------------------------------------------------------------- */
 // 速度
-struct Speed
+typedef struct Speed
 {
     double x, y;
-};
+} Speed;
 
 // 位置
-struct Pos
+typedef struct Position
 {
     double x, y;
-};
+} Position;
 
 // 粒子
-struct Particle
+typedef struct Particle
 {
-    Pos pos;
-    Speed speed;
-};
+    Position position;      // 粒子位置
+    Speed    speed;         // 粒子速度
+} Particle;
+
+// 烟花燃放过程的几个阶段
+typedef enum FireworksStage
+{
+    FireworksStage_WAIT  = 0,   // 等待阶段
+    FireworksStage_RISE  = 1,   // 上升阶段
+    FireworksStage_BLOOM = 2,   // 爆照阶段
+} FireworksStage;
+#define FIREWORKS_STAGE_COUNT   3
 
 // 烟花
-class Fireworks
+typedef struct Fireworks
 {
-private:
-    static const int NUM_PARTICLE = 200;
-    static const double particleSpeed;
-    Particle p[NUM_PARTICLE];
+    Particle* particle;     // 指向粒子数组
+    int       particleNum;  // 粒子数量 (上限为 PARTICLE_MAX_NUM)
 
-    color_t color;
+    Speed     speed;        // 烟花速度
+    Position  position;     // 烟花位置
+    color_t   color;        // 烟花颜色
 
-    int delayTime;      //延迟时间
-    int riseTime;       //上升时间
-    int bloomTime;      //爆炸时间
+    int       endTimes[FIREWORKS_STAGE_COUNT];  // 各阶段的结束时间
+    int       time;         // 当前时间
+    FireworksStage stage;   // 当前阶段
+    bool      finished;     // 燃放结束标志位
+} Fireworks;
 
-    Pos risePos;        //上升阶段位置
-    Speed riseSpeed;    //上升速度
+/* -------------------------------------------------------------------------- */
+// 创建一个 Fireworks 对象并进行初始化
+Fireworks* createFireworks();
 
-public:
-    //初始化
-    Fireworks();
+// 销毁 Fireworks 对象
+void destroyFireworks(Fireworks* fireworks);
 
-    void init();
+// 更新 Fireworks，返回值：{false: 结束; true: }结束时返回 false, 否则返回 true
+void updateFireworks(Fireworks* fireworks);
 
-    //更新位置等相关属性
-    void update();
+// 初始化烟花
+void initFireworks(Fireworks* fireworks);
 
-    //根据属性值绘画
-    void draw(PIMAGE pimg = NULL);
-};
+// 判断烟花是否已燃放结束
+bool isFireworksFinished(const Fireworks* fireworks);
 
-const double Fireworks::particleSpeed = 3.0;
+// 设置烟花位置
+void setFireworksPosition(Fireworks* fireworks, double x, double y);
 
-Fireworks::Fireworks()
-{
-    init();
-}
+// 设置烟花速度
+void setFireworksSpeed(Fireworks* fireworks, double x, double y);
 
-void Fireworks::init()
-{
-    delayTime = rand() % 300 + 20;
-    riseTime = rand() % 80 + 160;
-    bloomTime = 160;
+// 设置烟花颜色
+void setFireworksColor(Fireworks* fireworks, color_t color);
 
-    risePos.x = rand() % 450 + 300.0f;
-    risePos.y = GROUND;
+// 绘制烟花
+void drawFireworks(const Fireworks* fireworks);
 
-    riseSpeed.y = randomf() * 1.0 - 3.0; //速度 y: [-3.0, -2.0), 根据坐标系需要是负的
-    riseSpeed.x = randomf() * 0.4 - 0.2; //速度 x: [-0.2, 0.2), 可稍微倾斜
+/* -------------------------------------------------------------------------- */
+// 更新烟花速度
+static void updateFireworksSpeed(Fireworks* fireworks, double ax, double ay);
 
-    //随机颜色
-    color = HSVtoRGB((float)randomf() * 360.0, 1.0f, 1.0f);
+// 更新烟花位置
+static void updateFireworksPosition(Fireworks* fireworks);
 
-    //给每一个粒子设置初始速度
-    for (int i = 0; i < NUM_PARTICLE - 1; i += 2)
-    {
-        //为了球状散开，设初始速度大小相等
-        //初始随机速度水平角度和垂直角度，因为看到是平面的，所以求x, y分速度
-        double levelAngle = randomf() * 360;
-        double verticalAngle = randomf() * 360;
+// 设置烟花各个阶段的时间值
+static void setFireworksStageTime(Fireworks* fireworks, int waitTime, int riseTime, int bloomTime);
 
-        //速度投影到xOy平面
-        double xySpeed = particleSpeed * cos(verticalAngle);
+// 切换到下一阶段(已处于最后阶段时不再切换)
+static void switchToNextStage(Fireworks* fireworks);
 
-        //求x, y分速度
-        p[i].speed.x = xySpeed * cos(levelAngle);
-        p[i].speed.y = xySpeed * sin(levelAngle);
+// 初始化粒子(位置、速度)
+static void initParticles(Fireworks* fireworks, Position initialPosition);
 
-        //动量守恒，每对速度反向
-        if (i + 1 < NUM_PARTICLE) {
-            p[i + 1].speed.x = -p[i].speed.x;
-            p[i + 1].speed.y = -p[i].speed.y;
-        }
-    }
-}
+// 更新粒子(位置、速度)
+static void updateParticles(Fireworks* fireworks);
 
-void Fireworks::draw(PIMAGE pimg)
-{
-    //未开始
-    if (delayTime > 0)
-        return;
-    //烟花上升阶段
-    else if (riseTime > 0) {
-        setfillcolor(color, pimg);
-        //画四个点，这样大一些
-        bar(risePos.x, risePos.y, risePos.x + 2, risePos.y + 2, pimg);
-    }
-    //烟花绽放阶段
-    else {
-        setfillcolor(color, pimg);
-        for (int i = 0; i < NUM_PARTICLE; i++) {
-            bar(p[i].pos.x, p[i].pos.y, p[i].pos.x + 2, p[i].pos.y + 2, pimg);
-        }
-    }
-}
+// 阶段检查，根据时间计数切换阶段，结束时设置标志位（可以 isFireworksFinished() 检查)
+static void checkFireworksStage(Fireworks* fireworks);
 
-//更新位置等相关属性
-void Fireworks::update()
-{
-    if (delayTime-- > 0)
-        return;
-    //处于上升阶段，只更新烟花位置
-    else if (riseTime > 0) {
-        risePos.x += riseSpeed.x;
-        risePos.y += riseSpeed.y;
+// 重置烟花状态 (可重新燃放)
+static void resetFireworksState(Fireworks* fireworks);
 
-        //重力作用
-        riseSpeed.y += 0.005;
+/* -------------------------------------------------------------------------- */
+static const double accelerationY = 0.007;  // y 方向加速度
 
-        //上升完毕，到达爆炸阶段
-        if (--riseTime <= 0) {
-            //设粒子初始位置为烟花当前位置
-            for (int i = 0; i < NUM_PARTICLE; i++) {
-                p[i].pos.x = risePos.x;
-                p[i].pos.y = risePos.y;
-            }
-        }
-    }
-    //烟花绽放阶段
-    else if (bloomTime-- > 0) {
-        //粒子散开，更新粒子位置
-        for (int i = 0; i < NUM_PARTICLE; i++) {
-            p[i].pos.x += p[i].speed.x;
-            p[i].pos.y += p[i].speed.y;
+/* -------------------------------------------------------------------------- */
+// 给烟花一个随机的速度、颜色和粒子数量
+void randomFireworks(Fireworks* fireworks);
 
-            //重力作用
-            p[i].speed.y += 0.005;
+// 从图片文件中加载图像
+PIMAGE loadImageFromFile(const char* fileName);
 
-            //速度减慢
-            p[i].speed.x *= 0.982;
-            p[i].speed.y *= 0.982;
-        }
-    }
-    else {
-        //烟花重新开始
-        init();
-    }
-}
-
-
-#define NUM_FIREWORKS 12    //烟花数量，12左右比较好，多了太密集
+#define NUM_FIREWORKS 12    // 烟花数量
 
 int main()
 {
+    initgraph(768, 768, INIT_RENDERMANUAL | INIT_NOFORCEEXIT);
 
-    initgraph(800, 800, INIT_RENDERMANUAL);
-
+    // 随机数初始化
     randomize();
 
-    //烟花
-    Fireworks* fireworks = new Fireworks[NUM_FIREWORKS];
+    Fireworks* fireworksArray[NUM_FIREWORKS];
 
-    //背景图（800 x 800)
-    PIMAGE bgPimg = newimage();
-    getimage(bgPimg, "resources/background.jpg");
-    //先绘制一下，不然前面有空白期
-    putimage(0, 0, bgPimg);
+    // 创建烟花并进行初始化
+    for (int i = 0; i < NUM_FIREWORKS; i++) {
+        Fireworks* fireworks = createFireworks();
+        randomFireworks(fireworks);
+        setFireworksPosition(fireworks, 300 + random(450), GROUND);
+        fireworksArray[i] = fireworks;
+    }
+
+    const char* backgroundImagePath = "resources/background.jpg";
+    const char* backgroundMusicPath = "resources/background_music.mp3";
+
+    // 背景图片
+    PIMAGE backgroundImage = loadImageFromFile(backgroundImagePath);
+
+    // 绘制背景图片后刷新，减少空白期
+    putimage(0, 0, backgroundImage);
     delay_ms(0);
 
     //背景音乐
     MUSIC bgMusic;
-    bgMusic.OpenFile("resources/background_music.mp3");
+    bgMusic.OpenFile(backgroundMusicPath);
     bgMusic.SetVolume(1.0f);
     if (bgMusic.IsOpen()) {
-        bgMusic.Play(0);
+        bgMusic.Play(2000);
     }
-
 
     //图像缓存, 因为要加背景图，直接加模糊滤镜会把背景图模糊掉
     //所以另设一个图像缓存来绘制烟花并加模糊滤镜，再绘制到窗口
@@ -201,50 +171,296 @@ int main()
 
     for (; is_run(); delay_fps(60))
     {
-        //隔1秒检查一下，如果播放完了，重新播放
+        // 隔 1 秒检查一次，如果播放完了，重新播放
         if ((++timeCount % 60 == 0) && (bgMusic.GetPlayStatus() == MUSIC_MODE_STOP)) {
-            bgMusic.Play(0);
+            timeCount = 0;
+            bgMusic.Play(2000);
         }
+
         //更新位置
         for (int i = 0; i < NUM_FIREWORKS; i++) {
-            fireworks[i].update();
+            Fireworks* fireworks = fireworksArray[i];
+            updateFireworks(fireworks);
+            if(isFireworksFinished(fireworks)) {
+                randomFireworks(fireworks);
+                setFireworksPosition(fireworks, 300 + random(450), GROUND);
+                resetFireworksState(fireworks);
+            }
         }
 
-        //清屏
-        cleardevice();
-        //绘制背景
-        putimage(0, 0, bgPimg);
+        // 绘制烟花到图像缓存中，并进行模糊处理
+        settarget(cachePimg);
 
-        //绘制烟花到图像缓存中
         for (int i = 0; i < NUM_FIREWORKS; i++) {
-            fireworks[i].draw(cachePimg);
+            drawFireworks(fireworksArray[i]);
         }
 
-        //模糊滤镜，拖尾效果
-        //第二个参数，模糊度，越大越模糊，粒子也就越粗
-        //第三个参数，亮度，越大拖尾越长
-        //可以试试一下其它参数搭配，例如以下几组：
-        //0x03, 0xff
-        //0x0b, 0xe0
-        //0xff, 0xff
         imagefilter_blurring(cachePimg, 0x0a, 0xff);
 
-        //缓存绘制到窗口，模式为（最终颜色 = 窗口像素颜色 Or 图像像素颜色), 这样颜色会叠加起来
-        putimage(0, 0, cachePimg, SRCPAINT);
-
+        // 将背景图片和图像缓存绘制到窗口
+        settarget(NULL);                        // 绘图目标切换回窗口
+        cleardevice();                          // 清屏
+        putimage(0, 0, backgroundImage);        // 绘制背景
+        putimage(0, 0, cachePimg, SRCPAINT);    // 缓存绘制到窗口，模式为（最终颜色 = 窗口像素颜色 Or 图像像素颜色)
     }
 
-    //释放动态分配的内存
-    delete[] fireworks;
+    // 释放动态分配的内存
+    for (int i = 0; i < NUM_FIREWORKS; i++) {
+        destroyFireworks(fireworksArray[i]);
+        fireworksArray[i] = NULL;
+    }
 
-    //删除图像，释放资源
-    delimage(bgPimg);
+    // 销毁图像，释放内存
+    delimage(backgroundImage);
     delimage(cachePimg);
 
-    //释放音频资源
+    // 关闭音乐
     bgMusic.Close();
 
     closegraph();
 
     return 0;
 }
+
+/* -------------------------------------------------------------------------- */
+PIMAGE loadImageFromFile(const char* fileName)
+{
+    PIMAGE image = newimage();
+    getimage(image, fileName);
+    return image;
+}
+
+void randomFireworks(Fireworks* fireworks)
+{
+    int waitTime  = 120 + random(500);
+    int riseTime  = 160 + random(40);
+    int bloomTime = 150 + random(20);
+
+    setFireworksStageTime(fireworks, waitTime, riseTime, bloomTime);
+    setFireworksColor(fireworks, HSVtoRGB((float)randomf() * 360.0, 1.0f, 1.0f));
+
+    double xSpeed = -0.25 + randomf() * 0.5; // 水平分速度 x, 范围: [-0.2, 0.2), 可稍微倾斜
+    double ySpeed = -3.0 + randomf() * 0.8; // 垂直分速度 y, 范围: [-3.0, -2.2), 向上必须为负值
+    setFireworksSpeed(fireworks, xSpeed, ySpeed);
+}
+
+Fireworks* createFireworks()
+{
+    Fireworks* fireworks = (Fireworks*)malloc(sizeof(Fireworks));
+    assert(fireworks != NULL);
+    fireworks->particle = (Particle*)malloc(sizeof(Particle) * PARTICLE_MAX_NUM);
+    fireworks->particleNum = 0;
+
+    initFireworks(fireworks);
+
+    return fireworks;
+}
+
+void destroyFireworks(Fireworks* fireworks)
+{
+    free(fireworks->particle);
+    free(fireworks);
+}
+
+void updateFireworks(Fireworks* fireworks)
+{
+    if (isFireworksFinished(fireworks))
+        return;
+
+    fireworks->time++;
+
+    // 根据当前所处阶段进行相应的处理
+    switch(fireworks->stage)
+    {
+    case FireworksStage_WAIT:   // 等待阶段
+        // 不做任何处理
+        break;
+    case FireworksStage_RISE:   // 上升阶段
+        // 更新烟花位置
+        updateFireworksPosition(fireworks);
+
+        // 根据设置的加速度更新速度
+        updateFireworksSpeed(fireworks, 0.0, accelerationY);
+        break;
+    case FireworksStage_BLOOM:  // 爆炸阶段
+        // 更新粒子位置
+        updateParticles(fireworks);
+        break;
+    }
+
+    // 根据燃放时间检查当前所处阶段
+    checkFireworksStage(fireworks);
+}
+
+void checkFireworksStage(Fireworks* fireworks)
+{
+    if (isFireworksFinished(fireworks))
+        return;
+
+    // 当时间超过当前阶段所设置的时间时，跳转至下一阶段
+    if (fireworks->time > fireworks->endTimes[fireworks->stage]) {
+        FireworksStage currentStage = fireworks->stage;
+
+        // 当前阶段结束时做的处理
+        switch (currentStage)
+        {
+            case FireworksStage_WAIT:                                                   break;
+            case FireworksStage_RISE:  initParticles(fireworks, fireworks->position);   break;
+            case FireworksStage_BLOOM: fireworks->finished = true;                      break;
+        }
+
+        if (!isFireworksFinished(fireworks))
+            switchToNextStage(fireworks);
+    }
+}
+
+void initFireworks(Fireworks* fireworks)
+{
+    setFireworksStageTime(fireworks, 0, 0, 0);
+    setFireworksPosition(fireworks, 0.0, 0.0);
+    setFireworksSpeed(fireworks, 0.0, 0.0);
+    setFireworksColor(fireworks, EGEARGB(255, 255, 255, 255));
+
+    resetFireworksState(fireworks);
+}
+
+void updateFireworksSpeed(Fireworks* fireworks, double ax, double ay)
+{
+    fireworks->speed.x += ax;
+    fireworks->speed.y += ay;
+}
+
+void setFireworksSpeed(Fireworks* fireworks, double x, double y)
+{
+    fireworks->speed.x = x;
+    fireworks->speed.y = y;
+}
+
+void setFireworksPosition(Fireworks* fireworks, double x, double y)
+{
+    fireworks->position.x = x;
+    fireworks->position.y = y;
+}
+
+void setFireworksColor(Fireworks* fireworks, color_t color)
+{
+    fireworks->color = color;
+}
+
+bool isFireworksFinished(const Fireworks* fireworks)
+{
+    return fireworks->finished;
+}
+
+void drawFireworks(const Fireworks* fireworks)
+{
+    if (isFireworksFinished(fireworks))
+        return;
+
+    switch (fireworks->stage)
+    {
+    case FireworksStage_WAIT:
+        // 等待阶段，不绘制
+        break;
+
+    case FireworksStage_RISE:
+        setfillcolor(fireworks->color);
+        // 绘制 2x2 的点
+        bar(fireworks->position.x, fireworks->position.y,
+            fireworks->position.x + 2, fireworks->position.y + 2);
+        break;
+
+    case FireworksStage_BLOOM:
+        setfillcolor(fireworks->color);
+        for (int i = 0; i < fireworks->particleNum; i++) {
+            bar(fireworks->particle[i].position.x, fireworks->particle[i].position.y,
+                fireworks->particle[i].position.x + 2, fireworks->particle[i].position.y + 2);
+        }
+        break;
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+static void initParticles(Fireworks* fireworks, Position initialPosition)
+{
+    Particle* const particle = fireworks->particle;
+    fireworks->particleNum = PARTICLE_MIN_NUM + random(PARTICLE_MAX_NUM - PARTICLE_MIN_NUM + 1);
+
+    for (int i = 0; i < fireworks->particleNum; i += 2)
+    {
+        // 为了球状散开，设初始速度大小相等
+        // 初始随机速度水平角度和垂直角度，因为看到是平面的，所以求 x, y 分速度
+        double levelAngle    = randomf() * 2 * PI;
+        double verticalAngle = randomf() * 2 * PI;
+
+        double speed = 2.5 + randomf() * 0.5;           // 随机发射速度
+
+        double xySpeed = speed * cos(verticalAngle);    // 速度投影到 xOy 平面
+        double xSpeed  = xySpeed * cos(levelAngle);     // 求水平分速度 x
+        double ySpeed  = xySpeed * sin(levelAngle);     // 求垂直分速度 y
+
+        // 动量守恒，(i) 和 (i+1) 这对粒子速度反向
+        particle[i].position = initialPosition;
+        particle[i].speed.x = xSpeed;
+        particle[i].speed.y = ySpeed;
+
+        if (i + 1 < fireworks->particleNum)
+        {
+            particle[i+1].position = initialPosition;
+            particle[i + 1].speed.x = -particle[i].speed.x;
+            particle[i + 1].speed.y = -particle[i].speed.y;
+        }
+    }
+}
+
+static void updateParticles(Fireworks* fireworks)
+{
+    for (int i = 0; i < fireworks->particleNum; i++) {
+        fireworks->particle[i].position.x += fireworks->particle[i].speed.x;
+        fireworks->particle[i].position.y += fireworks->particle[i].speed.y;
+
+        //重力作用
+        fireworks->particle[i].speed.y += accelerationY;
+
+        //速度衰减
+        fireworks->particle[i].speed.x *= 0.982;
+        fireworks->particle[i].speed.y *= 0.982;
+    }
+}
+
+static void updateFireworksPosition(Fireworks* fireworks)
+{
+    fireworks->position.x += fireworks->speed.x;
+    fireworks->position.y += fireworks->speed.y;
+}
+
+static void setFireworksStageTime(Fireworks* fireworks, int waitTime, int riseTime, int bloomTime)
+{
+    fireworks->endTimes[FireworksStage_WAIT]  = waitTime;
+    fireworks->endTimes[FireworksStage_RISE]  = riseTime;
+    fireworks->endTimes[FireworksStage_BLOOM] = bloomTime;
+
+    // 累加求各阶段结束时间
+    for (int i = 1; i < FIREWORKS_STAGE_COUNT; i++)
+        fireworks->endTimes[i] += fireworks->endTimes[i-1];
+
+    fireworks->time = 0;
+}
+
+static void switchToNextStage(Fireworks* fireworks)
+{
+    int stageIndex = fireworks->stage;
+
+    if ((stageIndex + 1) < FIREWORKS_STAGE_COUNT)
+        fireworks->stage = (FireworksStage)(stageIndex + 1);
+}
+
+static void resetFireworksState(Fireworks* fireworks)
+{
+    fireworks->particleNum = 0;
+    fireworks->time  = 0;
+    fireworks->stage = FireworksStage_WAIT;
+    fireworks->finished = false;
+}
+
+
